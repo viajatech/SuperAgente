@@ -21,7 +21,8 @@ Bienvenido a **Agente Autónomo**, la herramienta de inteligencia artificial de 
 ### **🧠 Integración Multimodal con IA**
 
 - **Compatibilidad Universal:** Conecta y comunica con una amplia gama de modelos de IA, incluyendo LM Studio (Llama 3.1/3.2/3.3), Mistral, Qwen, Deepseek V3 y próximamente Llama 4.(entre otros)
-- **Inteligencia En la **pestaña de Configuración**, encontrarás un **Radio** con:
+- **Inteligencia Mejorada: Utiliza estrategias avanzadas de Test-Time Compute para que cualquier modelo de IA pueda "pensar" más y ofrecer respuestas más inteligentes y coherentes.
+- **pestaña de Configuración**, encontrarás un **Radio** con:
 - **Simple**: Emula un razonamiento interno (chain-of-thought) con la profundidad especificada.  
 - **Best-of-N** y **Weighted Best-of-N**: Generan varias respuestas y eligen la mejor según un reward (dummy).  
 - **Beam Search** y **DVTS**: Implementaciones simplificadas de búsquedas más elaboradas que optimizan la salida del modelo en el test-time.  
