@@ -109,6 +109,9 @@ python -m pywin32_postinstall
 2. **Ejecuta el Script Principal:**
    Inicia la interfaz gráfica presionando el boton iniciar chatbot y el agente chatbot ejecutando el script principal en tu entorno Python. click en el link local de gradio para que se abra una ventana/pestaña nueva en tu explorador.
 
+![](https://github.com/viajatech/SuperAgente/blob/main/LM%20STUDIO%20START%20SERVER.png)
+![](https://github.com/viajatech/SuperAgente/blob/main/GUI%20Python%20Iniciar%20Chatbot.png)
+
 ### 📜 **Instrucciones de Uso para el Agente Chatbot**
 
 Interactúa con el agente utilizando comandos de texto para automatizar tareas específicas. A continuación, se presentan ejemplos de uso para maximizar tu productividad:
