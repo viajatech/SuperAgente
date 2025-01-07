@@ -100,9 +100,9 @@ Interactúa con el agente utilizando comandos de texto para automatizar tareas e
 
 #### **Para Word/Excel/Notepad:**
 
-- **Abrir Word y escribir "hola mundo":**
+- **Abrir Word y escribir una breve historia sobre un capibara:**
   ```plaintext
-  abre word y escribe hola mundo
+  abre word y escribe historia sobre un capibara
   ```
 - **Abrir Excel y escribir múltiples líneas:**
   ```plaintext
