@@ -104,9 +104,9 @@ Interactúa con el agente utilizando comandos de texto para automatizar tareas e
 
 #### **Para Word/Excel/Notepad:**
 
-- **Abrir Word y escribir una breve historia sobre un capibara:**
+- **Abrir Word y escribir una  historia:**
   ```plaintext
-  abre word y escribe historia sobre un capibara
+  abre word y escribe una breve historia sobre un capibara
   ```
 - **Abrir Excel y escribir múltiples líneas:**
   ```plaintext
