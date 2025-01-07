@@ -247,6 +247,7 @@ Este proyecto está licenciado bajo la Licencia **Apache 2.0**. Consulta el arch
 Para más información o soporte, visita el repositorio en GitHub o contacta a [David Ruiz](https://github.com/viajatech).
 
 ---
+![](https://github.com/viajatech/SuperAgente/blob/main/SuperAgente%20GUI.png)
 
 🌐 **Descubre el Futuro de la Automatización con Agente Autónomo. ¡Únete a la Revolución de la Inteligencia Artificial Hoy!** 🌐
 
