@@ -27,7 +27,7 @@ Bienvenido a **Agente Autónomo**, la herramienta de inteligencia artificial de 
 - **Best-of-N** y **Weighted Best-of-N**: Generan varias respuestas y eligen la mejor según un reward (dummy).  
 - **Beam Search** y **DVTS**: Implementaciones simplificadas de búsquedas más elaboradas que optimizan la salida del modelo en el test-time.  
 
-Estas estrategias **no requieren** entrenamiento adicional; se basan en llamar varias veces al mismo modelo, con la diferencia de cómo se escogen las respuestas y cuántas iteraciones se ejecutan.ia Mejorada:** 
+Estas estrategias **no requieren** entrenamiento adicional; se basan en llamar varias veces al mismo modelo, con la diferencia de cómo se escogen las respuestas y cuántas iteraciones se ejecutan.
 
 - **Flexibilidad Total:** Cambia entre diferentes modelos de IA sin esfuerzo, adaptándose a tus necesidades y preferencias en tiempo real.
 
