@@ -66,6 +66,10 @@ Bienvenido a **Agente Autónomo**, la herramienta de inteligencia artificial de 
 
 - **Sistema Operativo:** Windows
 - **Python:** Versión 3.8 o superior
+- **Gradio** para la interfaz de usuario.  
+- **SpeechRecognition** para convertir voz a texto.  
+- **Azure Cognitive Services** para convertir texto en voz.  
+- **OpenAI API** apuntando a [LM Studio](https://github.com/lmstudio-ai) (configurado como servidor local).  
 
 ### 📥 **Instalación de Dependencias**
 
