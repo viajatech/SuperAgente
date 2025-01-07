@@ -72,7 +72,7 @@ Estas estrategias **no requieren** entrenamiento adicional; se basan en llamar v
 ### 📋 **Requisitos Previos**
 
 - **Sistema Operativo:** Windows
-- **Python:** Versión 3.8 o superior
+- **Python:** Versión 3.8 o superior (Recomiendo usar como IDE Pycharm,para mayor comodidad) 
 - **LM STUDIO**
 - **Gradio** para la interfaz de usuario.  
 - **SpeechRecognition** para convertir voz a texto.  
