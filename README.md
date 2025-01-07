@@ -12,7 +12,7 @@
 
 ## 📚 **Descripción**
 
-Bienvenido a **Agente Autónomo**, la herramienta de inteligencia artificial de última generación diseñada para transformar la manera en que interactúas con tu entorno digital. Inspirado por los personajes de ciencia ficción del libro de David Ruiz, este agente autónomo convierte ideas imaginativas en realidad tecnológica, integrando múltiples modelos de IA para ofrecer una experiencia sin precedentes en automatización y productividad.
+Bienvenido a **Agente Autónomo**, la herramienta de inteligencia artificial de última generación diseñada para transformar la manera en que interactúas con tu entorno digital. Inspirado por los personajes de ciencia ficción de la novela de David Ruiz, este agente autónomo convierte ideas imaginativas en realidad tecnológica, integrando múltiples modelos de IA para ofrecer una experiencia sin precedentes en automatización y productividad.
 
 ---
 
