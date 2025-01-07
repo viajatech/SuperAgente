@@ -73,7 +73,7 @@ Estas estrategias **no requieren** entrenamiento adicional; se basan en llamar v
 
 - **Sistema Operativo:** Windows
 - **Python:** Versión 3.8 o superior
-- **LM STUDIO:**
+- **LM STUDIO**
 - **Gradio** para la interfaz de usuario.  
 - **SpeechRecognition** para convertir voz a texto.  
 - **Azure Cognitive Services** para convertir texto en voz.  
