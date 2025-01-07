@@ -1,0 +1,35 @@
+Notas;
+
+instrucciones de uso para el agente chatbot; 
+Ejemplos de Uso:
+Para Word/Excel/Notepad:
+
+abre word y escribe hola mundo
+abre excel y escribe\nmanzana\npera\nuva
+abre bloc de notas y escribe un cuento
+Aplicar fórmula en Excel: introduce “A1” y “=1+1” en la sección “Aplicar Fórmula” de la pestaña Excel.
+Para buscar en Maps:
+
+abre chrome y busca en maps hoteles para perritos → ahora pondrá hoteles+para+perritos, sin en sobrante.
+abre firefox y busca en maps veterinarias → abre google maps con "veterinarias."
+Para “videos en youtube/vimeo de X”:
+
+abre firefox y busca videos en youtube de gatitos → quita “de ” → gatitos.
+abre chrome y busca videos en vimeo de tutoriales de python → quita “de ” → tutoriales de python.
+Para Spotify:
+
+abre spotify en chrome → abre https://open.spotify.com.
+abre spotify en firefox.
+Redes Sociales (placeholder):
+
+abre la red social x en firefox, mi usuario es pepito, contraseña 123, escribe "Hola" y publica.
+---------------
+
+instrucción para poder usar el agente chatbot en el túnel de gradio, para poder usarlo en celulares y otros equipos compartiendo el link; 
+ demo.launch(share=False) 
+lo debemos de cambiar a True para que nos de (2) dos links; el local (de nuestra pc/laptop) y el segundo link para compartir por 72 horas a celulares/equipos de terceros.
+demo.launch(share=True) 
+
+En resumen;
+equipos locales =False 
+equipos externos = True
