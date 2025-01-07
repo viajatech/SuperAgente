@@ -1,0 +1,11 @@
+pip install gradio
+pip install openai
+pip install azure-cognitiveservices-speech
+pip install speechrecognition
+pip install TTS
+pip install selenium
+pip install webdriver-manager
+pip install pyperclip
+pip install psutil
+pip install pywin32
+python -m pywin32_postinstall
