@@ -1,0 +1,1354 @@
+#Agente Autónomo by David Ruiz (@viajatech)
+#Tus donaciones al proyecto son importantes para seguir creando A.I de código abierto, el tiempo creando estas herramientas conlleva días enteros en escribir el código al igual que el desgaste de componentes en mi hardware.
+#Donaciones al proyecto,aqui; https://github.com/sponsors/viajatech
+
+
+#Se agradece tu estrellita en el repo de github; https://github.com/viajatech
+
+#Este es un proyecto nacido de la imaginación. al estar escribiendo sobre un personaje de ciencia ficción para mi libro logre entender que queria llevar acabo dicha tecnología en la vida real, y desde entonces los scripts que hago van enfocados en hacer realidad mis sueños y darle vida a mis personajes de mis libros y novelas de ciencia ficción.
+
+#Abre correctamente; Chrome, Firefox, consultas de video a Vimeo,YouTube e incluso abre Spotify. 
+#Abre programas; Word,bloc de notas,excel y escribe en ellos desde el GUI, luego se autoguarda en dichos programas una vez ha escrito.
+
+
+# =============================================================================
+#  Super Agente by Viaja Tech
+#    - Word, Excel (con reconexión + autoguardado), Notepad (autoguardado)
+#    - Chrome, Firefox con secciones (Imágenes, Videos, Shopping, Noticias, 
+#      Maps, Libros, Web/Todo)
+#    - Corrección “videos en youtube/vimeo de X” => “X”
+#    - Placeholders Redes Sociales
+#    - Test-time Compute (Simple, Best-of-N, Weighted, Beam, DVTS)
+#    - Arreglo: en maps, quitamos "en " si detecta "en maps" => "maps"
+# =============================================================================
+
+import os
+import sys
+import time
+import datetime
+import threading
+import subprocess
+import tempfile
+import logging
+import tkinter as tk
+from tkinter import ttk, messagebox, filedialog
+
+import psutil
+import pyperclip
+import pythoncom
+import win32com.client as win32
+
+# Selenium
+import urllib.parse
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.service import Service as ChromeService
+from selenium.webdriver.firefox.service import Service as FirefoxService
+from webdriver_manager.chrome import ChromeDriverManager
+from webdriver_manager.firefox import GeckoDriverManager
+import pywintypes
+
+# STT / TTS (opcional)
+import speech_recognition as sr
+import azure.cognitiveservices.speech as speechsdk
+
+# Gradio
+import gradio as gr
+
+# openai -> LM Studio
+from openai import OpenAI
+
+
+###############################################################################
+#                         LOGGING
+###############################################################################
+logging.basicConfig(
+    filename='app.log',
+    level=logging.WARNING,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
+
+###############################################################################
+#                      TKINTER LAUNCHER
+###############################################################################
+class MultiAppLauncher:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Super Agente by Viaja Tech")
+        self.root.geometry("1200x800")
+        self.root.resizable(False, False)
+
+        # Word
+        self.word_doc = None
+
+        # Excel
+        self.excel_app = None
+        self.excel_sheet = None
+
+        # Notepad
+        self.notepad_temp_file = None
+        self.notepad_live_sync = False
+
+        # Browsers
+        self.chrome_driver = None
+        self.firefox_driver = None
+
+        # Social placeholders
+        self.social_drivers = {
+            'x': None,
+            'facebook': None,
+            'instagram': None,
+            'threads': None,
+            'tiktok': None,
+            'youtube': None,
+            'github': None,
+            'vimeo': None
+        }
+
+        self.notebook = ttk.Notebook(self.root)
+        self.notebook.pack(pady=10, expand=True)
+
+        self.text_areas = {}
+        self.last_update = 0
+        self.update_delay = 500
+
+        if os.name != 'nt':
+            messagebox.showerror("SO no compatible", "Este script sólo funciona en Windows.")
+            self.root.destroy()
+            sys.exit()
+
+        self.create_all_tabs()
+
+        close_btn = tk.Button(
+            self.root,
+            text="Cerrar Aplicación",
+            command=self.cerrar_aplicacion,
+            bg="#FF0000",
+            fg="white",
+            font=("Arial", 12),
+            padx=20,
+            pady=10
+        )
+        close_btn.pack(pady=5)
+
+    def create_all_tabs(self):
+        self.create_notepad_tab()
+        self.create_word_tab()
+        self.create_excel_tab()
+        self.create_firefox_tab()
+        self.create_chrome_tab()
+
+    # ------------------ NOTEPAD ------------------
+    def create_notepad_tab(self):
+        tab = ttk.Frame(self.notebook)
+        self.notebook.add(tab, text="Bloc de Notas / Notepad")
+
+        lbl = tk.Label(tab, text="Texto para Notepad:", font=("Arial", 12))
+        lbl.pack(pady=5)
+
+        frame_txt = tk.Frame(tab)
+        frame_txt.pack(pady=5, padx=10, fill=tk.BOTH, expand=True)
+
+        scrollbar = tk.Scrollbar(frame_txt)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+        text_area = tk.Text(
+            frame_txt,
+            wrap=tk.WORD,
+            width=80,
+            height=20,
+            font=("Arial", 12),
+            yscrollcommand=scrollbar.set
+        )
+        text_area.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.config(command=text_area.yview)
+
+        self.text_areas['notepad'] = text_area
+        text_area.bind('<KeyRelease>', lambda e: self.on_text_change(text_area))
+
+        btn_notepad_once = tk.Button(
+            tab,
+            text="Abrir Notepad (una vez)",
+            command=lambda: self.enviar_a_notepad_una_vez(text_area),
+            bg="#555555",
+            fg="white",
+            font=("Arial", 12),
+            padx=20,
+            pady=10
+        )
+        btn_notepad_once.pack(pady=5)
+
+    def enviar_a_notepad_una_vez(self, text_widget):
+        texto = text_widget.get("1.0", tk.END).strip()
+        if not texto:
+            messagebox.showwarning("Aviso", "Ingresa texto antes de abrir Notepad.")
+            return
+        try:
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".txt", mode='w', encoding='utf-8') as tmp:
+                tmp.write(texto)
+                self.notepad_temp_file = tmp.name
+
+            subprocess.Popen(['notepad.exe', self.notepad_temp_file])
+            self.notepad_live_sync = False
+            self._auto_save_notepad_immediate()
+
+        except Exception as e:
+            logging.warning(f"Error Notepad: {e}")
+
+    def _auto_save_notepad_immediate(self):
+        if not self.notepad_temp_file:
+            return
+        ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        default_path = os.path.join(os.getcwd(), f"auto_saved_notepad_{ts}.txt")
+        try:
+            with open(self.notepad_temp_file, 'r', encoding='utf-8') as src:
+                content = src.read()
+            with open(default_path, 'w', encoding='utf-8') as dst:
+                dst.write(content)
+            logging.warning(f"[Auto-Saved Notepad] => {default_path}")
+        except Exception as e:
+            logging.warning(f"Error auto-saving Notepad: {e}")
+
+    def cerrar_notepad_process(self):
+        try:
+            for proc in psutil.process_iter(['pid', 'name']):
+                if proc.info['name'] and proc.info['name'].lower() == "notepad.exe":
+                    proc.kill()
+        except Exception as e:
+            logging.warning(f"Error cerrando Notepad: {e}")
+
+    def update_notepad_live(self, new_text):
+        if not self.notepad_temp_file:
+            return
+        self.cerrar_notepad_process()
+        time.sleep(0.5)
+        try:
+            with open(self.notepad_temp_file, 'w', encoding='utf-8') as f:
+                f.write(new_text)
+            subprocess.Popen(['notepad.exe', self.notepad_temp_file])
+        except Exception as e:
+            logging.warning(f"Error update_notepad_live: {e}")
+
+    def auto_save_notepad(self):
+        if not self.notepad_temp_file:
+            messagebox.showwarning("No se puede guardar", "No hay Notepad abierto.")
+            return
+        path = filedialog.asksaveasfilename(
+            title="Guardar Notepad",
+            defaultextension=".txt",
+            filetypes=[("Archivo de texto", "*.txt"), ("Todos los archivos", "*.*")]
+        )
+        if path:
+            try:
+                with open(self.notepad_temp_file, 'r', encoding='utf-8') as src:
+                    content = src.read()
+                with open(path, 'w', encoding='utf-8') as dst:
+                    dst.write(content)
+                messagebox.showinfo("Guardado", f"Notepad guardado en:\n{path}")
+            except Exception as e:
+                messagebox.showerror("Error", f"No se pudo guardar Notepad:\n{e}")
+
+    # ------------------ WORD ------------------
+    def create_word_tab(self):
+        tab = ttk.Frame(self.notebook)
+        self.notebook.add(tab, text="Microsoft Word")
+
+        lbl = tk.Label(tab, text="Texto para Word:", font=("Arial", 12))
+        lbl.pack(pady=5)
+
+        frame_txt = tk.Frame(tab)
+        frame_txt.pack(pady=5, padx=10, fill=tk.BOTH, expand=True)
+
+        scrollbar = tk.Scrollbar(frame_txt)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+        text_area = tk.Text(
+            frame_txt,
+            wrap=tk.WORD,
+            width=80,
+            height=20,
+            font=("Arial", 12),
+            yscrollcommand=scrollbar.set
+        )
+        text_area.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.config(command=text_area.yview)
+
+        self.text_areas['word'] = text_area
+        text_area.bind('<KeyRelease>', lambda e: self.on_text_change(text_area))
+
+        btn_word = tk.Button(
+            tab,
+            text="Abrir Word",
+            command=lambda: self.abrir_word(text_area),
+            bg="#4CAF50",
+            fg="white",
+            font=("Arial", 12),
+            padx=20,
+            pady=10
+        )
+        btn_word.pack(pady=5)
+
+    def abrir_word(self, text_widget):
+        texto = text_widget.get("1.0", tk.END).strip()
+        try:
+            pythoncom.CoInitialize()
+            if not self.word_doc:
+                word = win32.gencache.EnsureDispatch('Word.Application')
+                word.Visible = True
+                self.word_doc = word.Documents.Add()
+            self.word_doc.Content.Text = texto
+            self._auto_save_word_immediate()
+        except Exception as e:
+            logging.warning(f"Error abrir_word: {e}")
+        finally:
+            pythoncom.CoUninitialize()
+
+    def _auto_save_word_immediate(self):
+        try:
+            if self.word_doc:
+                ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+                default_path = os.path.join(os.getcwd(), f"auto_saved_word_{ts}.docx")
+                self.word_doc.SaveAs2(default_path)
+                logging.warning(f"[Auto-Saved Word] => {default_path}")
+        except Exception as e:
+            logging.warning(f"Error auto_save_word_immediate: {e}")
+
+    def update_word(self, texto):
+        try:
+            pythoncom.CoInitialize()
+            if self.word_doc:
+                self.word_doc.Content.Text = texto
+        except Exception as e:
+            logging.warning(f"Error update_word: {e}")
+        finally:
+            pythoncom.CoUninitialize()
+
+    def abrir_word_con_historia(self, texto):
+        try:
+            pythoncom.CoInitialize()
+            if not self.word_doc:
+                word = win32.gencache.EnsureDispatch('Word.Application')
+                word.Visible = True
+                self.word_doc = word.Documents.Add()
+            self.word_doc.Content.Text = texto
+            self._auto_save_word_immediate()
+        except Exception as e:
+            logging.warning(f"Error abrir_word_con_historia: {e}")
+        finally:
+            pythoncom.CoUninitialize()
+
+    def auto_save_word(self):
+        try:
+            pythoncom.CoInitialize()
+            if not self.word_doc:
+                messagebox.showwarning("Word no abierto", "No hay documento Word para guardar.")
+                return
+            path = filedialog.asksaveasfilename(
+                title="Guardar Word",
+                defaultextension=".docx",
+                filetypes=[("Documento Word", "*.docx"), ("Todos los archivos", "*.*")]
+            )
+            if path:
+                self.word_doc.SaveAs2(path)
+                messagebox.showinfo("Guardado", f"Documento Word guardado:\n{path}")
+        except Exception as e:
+            messagebox.showerror("Error", f"No se pudo guardar Word:\n{e}")
+        finally:
+            pythoncom.CoUninitialize()
+
+    # ------------------ EXCEL ------------------
+    def create_excel_tab(self):
+        tab = ttk.Frame(self.notebook)
+        self.notebook.add(tab, text="Microsoft Excel")
+
+        lbl = tk.Label(tab, text="Texto para Excel (una línea por celda en Columna A):", font=("Arial", 12))
+        lbl.pack(pady=5)
+
+        frame_txt = tk.Frame(tab)
+        frame_txt.pack(pady=5, padx=10, fill=tk.BOTH, expand=True)
+
+        scrollbar = tk.Scrollbar(frame_txt)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+        text_area = tk.Text(
+            frame_txt,
+            wrap=tk.WORD,
+            width=70,
+            height=12,
+            font=("Arial", 12),
+            yscrollcommand=scrollbar.set
+        )
+        text_area.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.config(command=text_area.yview)
+
+        self.text_areas['excel'] = text_area
+        text_area.bind('<KeyRelease>', lambda e: self.on_text_change(text_area))
+
+        btn_excel = tk.Button(
+            tab,
+            text="Abrir Excel",
+            command=lambda: self.abrir_excel(text_area),
+            bg="#FF9800",
+            fg="white",
+            font=("Arial", 12),
+            padx=20,
+            pady=10
+        )
+        btn_excel.pack(pady=5)
+
+        # Frame para fórmula
+        formula_frame = tk.LabelFrame(tab, text="Aplicar Fórmula en Excel")
+        formula_frame.pack(pady=5, padx=10, fill=tk.X)
+
+        lbl_cell = tk.Label(formula_frame, text="Celda (Ej: A1):", font=("Arial", 10))
+        lbl_cell.grid(row=0, column=0, padx=5, pady=5, sticky="e")
+        self.excel_cell_entry = tk.Entry(formula_frame, width=10)
+        self.excel_cell_entry.grid(row=0, column=1, padx=5, pady=5)
+
+        lbl_formula = tk.Label(formula_frame, text="Fórmula (Ej: =1+1):", font=("Arial", 10))
+        lbl_formula.grid(row=0, column=2, padx=5, pady=5, sticky="e")
+        self.excel_formula_entry = tk.Entry(formula_frame, width=20)
+        self.excel_formula_entry.grid(row=0, column=3, padx=5, pady=5)
+
+        btn_set_formula = tk.Button(
+            formula_frame,
+            text="Aplicar Fórmula",
+            command=self.aplicar_formula_excel,
+            bg="#3F51B5",
+            fg="white",
+            font=("Arial", 10),
+            padx=10,
+            pady=5
+        )
+        btn_set_formula.grid(row=0, column=4, padx=5, pady=5)
+
+    def abrir_excel(self, text_widget):
+        texto = text_widget.get("1.0", tk.END)
+        self.write_in_excel(texto)
+
+    def write_in_excel(self, texto):
+        lines = texto.split('\n')
+        for intento in range(2):
+            try:
+                pythoncom.CoInitialize()
+                if not self.excel_app or not self.excel_sheet:
+                    self.excel_app = win32.gencache.EnsureDispatch('Excel.Application')
+                    self.excel_app.Visible = True
+                    wb = self.excel_app.Workbooks.Add()
+                    self.excel_sheet = wb.Worksheets(1)
+
+                row = 1
+                for line in lines:
+                    self.excel_sheet.Cells(row, 1).Value = line
+                    row += 1
+
+                self._auto_save_excel_immediate()
+                return
+            except pywintypes.com_error as e:
+                logging.warning(f"Error Excel: {e}")
+                if self.excel_app:
+                    try:
+                        self.excel_app.Quit()
+                    except:
+                        pass
+                self.excel_app = None
+                self.excel_sheet = None
+                if intento == 1:
+                    raise e
+            finally:
+                pythoncom.CoUninitialize()
+
+    def _auto_save_excel_immediate(self):
+        try:
+            pythoncom.CoInitialize()
+            if self.excel_app and self.excel_sheet:
+                ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+                default_path = os.path.join(os.getcwd(), f"auto_saved_excel_{ts}.xlsx")
+                wb = self.excel_app.ActiveWorkbook
+                wb.SaveAs(default_path)
+                logging.warning(f"[Auto-Saved Excel] => {default_path}")
+        except Exception as e:
+            logging.warning(f"Error auto_save_excel_immediate: {e}")
+        finally:
+            pythoncom.CoUninitialize()
+
+    def auto_save_excel(self):
+        try:
+            pythoncom.CoInitialize()
+            if not self.excel_app or not self.excel_sheet:
+                messagebox.showwarning("Excel no abierto", "No hay libro Excel para guardar.")
+                return
+            path = filedialog.asksaveasfilename(
+                title="Guardar Excel",
+                defaultextension=".xlsx",
+                filetypes=[("Libro Excel", "*.xlsx"), ("Todos los archivos", "*.*")]
+            )
+            if path:
+                wb = self.excel_app.ActiveWorkbook
+                wb.SaveAs(path)
+                messagebox.showinfo("Guardado", f"Libro Excel guardado:\n{path}")
+        except Exception as e:
+            messagebox.showerror("Error", f"No se pudo guardar Excel:\n{e}")
+        finally:
+            pythoncom.CoUninitialize()
+
+    def aplicar_formula_excel(self):
+        if not self.excel_app or not self.excel_sheet:
+            messagebox.showwarning("Excel no abierto", "Primero abre Excel antes de aplicar fórmula.")
+            return
+        cell_str = self.excel_cell_entry.get().strip()
+        formula_str = self.excel_formula_entry.get().strip()
+        if not cell_str or not formula_str:
+            messagebox.showwarning("Campos vacíos", "Indica celda y fórmula.")
+            return
+        try:
+            pythoncom.CoInitialize()
+            wb = self.excel_app.ActiveWorkbook
+            sht = wb.ActiveSheet
+            sht.Range(cell_str).Formula = formula_str
+            messagebox.showinfo("Fórmula aplicada", f"Celda {cell_str} = {formula_str}")
+        except Exception as e:
+            messagebox.showerror("Error", f"No se pudo aplicar la fórmula:\n{e}")
+        finally:
+            pythoncom.CoUninitialize()
+
+    # ------------------- BROWSERS (CHROME / FIREFOX) -------------------
+    def create_firefox_tab(self):
+        tab = ttk.Frame(self.notebook)
+        self.notebook.add(tab, text="Buscar en Firefox")
+
+        lbl = tk.Label(tab, text="Texto para Firefox (búsqueda):", font=("Arial", 12))
+        lbl.pack(pady=5)
+
+        frame_txt = tk.Frame(tab)
+        frame_txt.pack(pady=5, padx=10, fill=tk.BOTH, expand=True)
+
+        scrollbar = tk.Scrollbar(frame_txt)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+        text_area = tk.Text(
+            frame_txt, wrap=tk.WORD, width=80, height=10,
+            font=("Arial", 12),
+            yscrollcommand=scrollbar.set
+        )
+        text_area.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.config(command=text_area.yview)
+
+        self.text_areas['firefox'] = text_area
+        text_area.bind('<KeyRelease>', lambda e: self.on_text_change(text_area))
+
+        btn_ff = tk.Button(
+            tab,
+            text="Abrir/Búsqueda en Firefox",
+            command=lambda: self.abrir_firefox(text_area),
+            bg="#FF7139",
+            fg="white",
+            font=("Arial", 12),
+            padx=20,
+            pady=10
+        )
+        btn_ff.pack(pady=5)
+
+    def create_chrome_tab(self):
+        tab = ttk.Frame(self.notebook)
+        self.notebook.add(tab, text="Buscar en Chrome")
+
+        lbl = tk.Label(tab, text="Texto para Chrome (búsqueda):", font=("Arial", 12))
+        lbl.pack(pady=5)
+
+        frame_txt = tk.Frame(tab)
+        frame_txt.pack(pady=5, padx=10, fill=tk.BOTH, expand=True)
+
+        scrollbar = tk.Scrollbar(frame_txt)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+        text_area = tk.Text(
+            frame_txt, wrap=tk.WORD, width=80, height=10,
+            font=("Arial", 12),
+            yscrollcommand=scrollbar.set
+        )
+        text_area.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.config(command=text_area.yview)
+
+        self.text_areas['chrome'] = text_area
+        text_area.bind('<KeyRelease>', lambda e: self.on_text_change(text_area))
+
+        btn_chrome = tk.Button(
+            tab,
+            text="Abrir/Búsqueda en Chrome",
+            command=lambda: self.abrir_chrome(text_area),
+            bg="#4285F4",
+            fg="white",
+            font=("Arial", 12),
+            padx=20,
+            pady=10
+        )
+        btn_chrome.pack(pady=5)
+
+    def abrir_firefox(self, text_widget):
+        texto = text_widget.get("1.0", tk.END).strip()
+        try:
+            if not self.firefox_driver:
+                service = FirefoxService(executable_path=GeckoDriverManager().install())
+                options = webdriver.FirefoxOptions()
+                options.add_argument("--start-maximized")
+                self.firefox_driver = webdriver.Firefox(service=service, options=options)
+            self.update_browsers('firefox', texto, "Todo")
+        except Exception as e:
+            logging.warning(f"Error abrir_firefox: {e}")
+
+    def abrir_chrome(self, text_widget):
+        texto = text_widget.get("1.0", tk.END).strip()
+        try:
+            if not self.chrome_driver:
+                service = ChromeService(executable_path=ChromeDriverManager().install())
+                options = webdriver.ChromeOptions()
+                options.add_argument("--start-maximized")
+                options.add_experimental_option('excludeSwitches', ['enable-logging'])
+                self.chrome_driver = webdriver.Chrome(service=service, options=options)
+            threading.Thread(
+                target=self.update_browsers,
+                args=('chrome', texto, "Todo"),
+                daemon=True
+            ).start()
+        except Exception as e:
+            logging.warning(f"Error abrir_chrome: {e}")
+
+    def abrir_chrome_fake(self, raw_search):
+        try:
+            if not self.chrome_driver:
+                service = ChromeService(executable_path=ChromeDriverManager().install())
+                options = webdriver.ChromeOptions()
+                options.add_argument("--start-maximized")
+                options.add_experimental_option('excludeSwitches', ['enable-logging'])
+                self.chrome_driver = webdriver.Chrome(service=service, options=options)
+            self.update_browsers('chrome', raw_search, "Todo")
+        except Exception as e:
+            logging.warning(f"Error abrir_chrome_fake: {e}")
+
+    def abrir_firefox_fake(self, raw_search):
+        try:
+            if not self.firefox_driver:
+                service = FirefoxService(executable_path=GeckoDriverManager().install())
+                options = webdriver.FirefoxOptions()
+                options.add_argument("--start-maximized")
+                self.firefox_driver = webdriver.Firefox(service=service, options=options)
+            self.update_browsers('firefox', raw_search, "Todo")
+        except Exception as e:
+            logging.warning(f"Error abrir_firefox_fake: {e}")
+
+    def update_browsers(self, browser_key, texto, default_section):
+        """
+        Corrige "en hoteles para perritos" => "hoteles para perritos"
+        Mismo con "en maps", etc.
+        """
+        ltxt = texto.lower()
+
+        # 1) Revisar si "maps"
+        # Si el usuario dice "en maps", lo removemos
+        # por ejemplo: "busca en maps hoteles para perritos" => subject = "hoteles para perritos"
+        if "map" in ltxt:
+            # remover "en maps" o "maps" en la parte sobrante
+            # para no generarle "en++"
+            parted = ltxt.split("maps", maxsplit=1)
+            # parted[-1], remove leading "en "
+            subject = parted[-1].strip()
+            if subject.startswith("en "):
+                subject = subject[3:].strip()
+            # apply normal removal logic
+            #  (handled below with remove_phrases if needed)
+            # then do google maps search
+            # we return after building the url
+            # but let's keep the standard logic for partial synergy
+            # so we reassign ltxt to some placeholder
+            ltxt = "maps " + subject
+
+        # 2) Revisar "spotify"
+        if "spotify" in ltxt:
+            # placeholder => open "https://open.spotify.com/"
+            try:
+                url = "https://open.spotify.com/"
+                if browser_key == 'firefox' and self.firefox_driver:
+                    self.firefox_driver.get(url)
+                elif browser_key == 'chrome' and self.chrome_driver:
+                    self.chrome_driver.get(url)
+                return
+            except Exception as e:
+                logging.warning(f"Error abrir Spotify: {e}")
+                return
+
+        # 3) videos en youtube
+        if "video" in ltxt and "youtube" in ltxt:
+            parted = ltxt.split("youtube", maxsplit=1)
+            subject = parted[-1].strip()
+            if subject.startswith("de "):
+                subject = subject[3:].strip()
+            for rp in ["videos en", "videos", "video en", "video", "de"]:
+                idx = subject.find(rp)
+                if idx != -1:
+                    subject = subject[:idx] + subject[idx+len(rp):]
+            subject = subject.strip()
+            if not subject:
+                subject = "videos"
+
+            q = urllib.parse.quote_plus(subject)
+            url = f"https://www.youtube.com/results?search_query={q}"
+            try:
+                if browser_key == 'firefox' and self.firefox_driver:
+                    self.firefox_driver.get(url)
+                elif browser_key == 'chrome' and self.chrome_driver:
+                    self.chrome_driver.get(url)
+            except Exception as e:
+                logging.warning(f"Error youtube: {e}")
+            return
+
+        # 4) videos en vimeo
+        if "video" in ltxt and "vimeo" in ltxt:
+            parted = ltxt.split("vimeo", maxsplit=1)
+            subject = parted[-1].strip()
+            if subject.startswith("de "):
+                subject = subject[3:].strip()
+            for rp in ["videos en", "videos", "video en", "video", "de"]:
+                idx = subject.find(rp)
+                if idx != -1:
+                    subject = subject[:idx] + subject[idx+len(rp):]
+            subject = subject.strip()
+            if not subject:
+                subject = "videos"
+            q = urllib.parse.quote_plus(subject)
+            url = f"https://vimeo.com/search?q={q}"
+            try:
+                if browser_key == 'firefox' and self.firefox_driver:
+                    self.firefox_driver.get(url)
+                elif browser_key == 'chrome' and self.chrome_driver:
+                    self.chrome_driver.get(url)
+            except Exception as e:
+                logging.warning(f"Error vimeo: {e}")
+            return
+
+        # 5) Secciones normales
+        sec = default_section
+        if "imagen" in ltxt or "foto" in ltxt:
+            sec = "Imágenes"
+        elif "video" in ltxt:
+            sec = "Videos"
+        elif "map" in ltxt:
+            sec = "Maps"
+        elif "noticia" in ltxt:
+            sec = "Noticias"
+        elif "shopping" in ltxt or "comprar" in ltxt:
+            sec = "Shopping"
+        elif "libro" in ltxt:
+            sec = "Libros"
+
+        remove_phrases = [
+            "fotos de", "fotos", "imagenes de", "imágenes de", "imágenes",
+            "videos de", "videos", "video de", "video", "videos en", "video en",
+            "noticias de", "noticia de", "noticias", "noticia",
+            "maps de", "map de", "maps", "map",
+            "shopping de", "shopping", "comprar",
+            "libros de", "libro de", "libros", "libro"
+        ]
+        subject = texto
+        for rp in remove_phrases:
+            idx = subject.lower().find(rp)
+            if idx != -1:
+                subject = subject[:idx] + subject[idx+len(rp):]
+        subject = subject.strip()
+        if subject.startswith("en "):
+            subject = subject[3:].strip()
+        if not subject:
+            subject = texto
+
+        section_map = {
+            "Todo":     "",
+            "Imágenes": "isch",
+            "Videos":   "vid",
+            "Maps":     "maps",
+            "Noticias": "nws",
+            "Shopping": "shop",
+            "Libros":   "bks"
+        }
+
+        query = urllib.parse.quote_plus(subject)
+        if sec == "Maps":
+            url = f"https://www.google.com/maps/search/?api=1&query={query}"
+        else:
+            tbm = section_map.get(sec, "")
+            if tbm:
+                url = f"https://www.google.com/search?q={query}&tbm={tbm}"
+            else:
+                url = f"https://www.google.com/search?q={query}"
+
+        try:
+            if browser_key == 'firefox' and self.firefox_driver:
+                self.firefox_driver.get(url)
+            elif browser_key == 'chrome' and self.chrome_driver:
+                self.chrome_driver.get(url)
+        except Exception as e:
+            logging.warning(f"Error update_browsers: {e}")
+
+    # -------------- Placeholders Redes Sociales --------------
+    def login_social_media(self, platform, user, password):
+        pass
+
+    def post_social_media(self, platform, text, media_path=None):
+        pass
+
+    # -------------- TEXT CHANGE / CERRAR ---------------------
+    def on_text_change(self, text_widget):
+        cur_time = time.time() * 1000
+        if cur_time - self.last_update >= self.update_delay:
+            self.last_update = cur_time
+            texto = text_widget.get("1.0", tk.END)
+            for k, area in self.text_areas.items():
+                if text_widget == area:
+                    if k == 'word' and self.word_doc:
+                        self.update_word(texto)
+                    elif k == 'excel' and self.excel_sheet:
+                        self.write_in_excel(texto)
+                    elif k == 'notepad' and self.notepad_live_sync:
+                        threading.Thread(
+                            target=self.update_notepad_live,
+                            args=(texto,),
+                            daemon=True
+                        ).start()
+                    elif k == 'firefox' and self.firefox_driver:
+                        threading.Thread(
+                            target=self.update_browsers,
+                            args=('firefox', texto, "Todo"),
+                            daemon=True
+                        ).start()
+                    elif k == 'chrome' and self.chrome_driver:
+                        threading.Thread(
+                            target=self.update_browsers,
+                            args=('chrome', texto, "Todo"),
+                            daemon=True
+                        ).start()
+
+    def cerrar_aplicacion(self):
+        try:
+            pythoncom.CoInitialize()
+            if self.word_doc:
+                self.word_doc.Application.Quit()
+                self.word_doc = None
+            if self.excel_app:
+                self.excel_app.Quit()
+                self.excel_app = None
+                self.excel_sheet = None
+        except:
+            pass
+        finally:
+            pythoncom.CoUninitialize()
+
+        if self.chrome_driver:
+            self.chrome_driver.quit()
+            self.chrome_driver = None
+        if self.firefox_driver:
+            self.firefox_driver.quit()
+            self.firefox_driver = None
+
+        self.cerrar_notepad_process()
+        self.root.destroy()
+        sys.exit()
+
+    def main(self):
+        self.root.mainloop()
+
+
+###############################################################################
+#                           LM STUDIO + TEST TIME
+###############################################################################
+client = OpenAI(base_url="http://localhost:1234/v1", api_key="lm-studio")
+
+def speak_text_azure(text, voice_gender):
+    pass
+
+def transcribe_audio():
+    r = sr.Recognizer()
+    with sr.Microphone() as source:
+        audio = r.listen(source)
+    try:
+        return r.recognize_google(audio, language='es-ES')
+    except:
+        return "No pude entender el audio."
+
+def build_conversation_history(messages):
+    hist = []
+    for m in messages:
+        if m["role"] == "user":
+            hist.append(f"Usuario: {m['content']}")
+        elif m["role"] == "assistant":
+            hist.append(f"Asistente: {m['content']}")
+    return "\n".join(hist)
+
+def dummy_reward_function(text):
+    return len(text)
+
+def strategy_simple(context, user_message, depth, model, temperature, full_messages=None):
+    if full_messages is not None:
+        c_hist = build_conversation_history(full_messages)
+        context = f"{context}\n\nHistorial:\n{c_hist}"
+
+    prompt = f"""
+Eres un asistente.
+Usuario: "{user_message}"
+Genera un razonamiento interno con {depth} pasos.
+Luego di "Respuesta Final:" con tu respuesta final.
+"""
+    msgs_for_api = [
+        {"role": "system", "content": context},
+        {"role": "system", "content": prompt},
+        {"role": "user", "content": user_message}
+    ]
+    try:
+        completion = client.chat.completions.create(
+            model=model,
+            messages=msgs_for_api,
+            temperature=temperature
+        )
+        return completion.choices[0].message.content.strip()
+    except Exception as e:
+        return f"Error strategy_simple: Error code: 400 - {str(e)}"
+
+def strategy_best_of_n(context, user_message, n, model, temperature, full_messages=None):
+    return "Not Implemented"
+
+def strategy_weighted_best_of_n(context, user_message, n, model, temperature, full_messages=None):
+    return "Not Implemented"
+
+def strategy_beam_search(context, user_message, beam_iterations, model, temperature, full_messages=None):
+    return "Not Implemented"
+
+def strategy_dvts(context, user_message, total_subtrees, model, temperature, full_messages=None):
+    return "DVTS placeholder"
+
+
+###############################################################################
+#                   PARSEO DE COMANDOS
+###############################################################################
+launcher = None
+
+def get_system_time():
+    now = datetime.datetime.now()
+    return now.strftime("%Y-%m-%d %H:%M:%S")
+
+def parse_and_execute_command(
+    user_text,
+    context,
+    messages,
+    strategy,
+    test_time_compute,
+    model,
+    temperature
+):
+    lt = user_text.lower()
+
+    # Manejo de "abre spotify" (chrome/firefox) => open "https://open.spotify.com/"
+    if "abre spotify" in lt:
+        if "chrome" in lt:
+            if not launcher.chrome_driver:
+                launcher.abrir_chrome_fake("spotify")
+                return True, "Abriendo Chrome y Spotify"
+            else:
+                launcher.update_browsers('chrome', "spotify", "Todo")
+                return True, "Spotify en Chrome"
+        elif "firefox" in lt:
+            if not launcher.firefox_driver:
+                launcher.abrir_firefox_fake("spotify")
+                return True, "Abriendo Firefox y Spotify"
+            else:
+                launcher.update_browsers('firefox', "spotify", "Todo")
+                return True, "Spotify en Firefox"
+        else:
+            # default
+            if not launcher.chrome_driver:
+                launcher.abrir_chrome_fake("spotify")
+                return True, "Abriendo Chrome y Spotify"
+            else:
+                launcher.update_browsers('chrome', "spotify", "Todo")
+                return True, "Spotify en Chrome"
+
+    if "abre la red social" in lt and ("usuario" in lt or "contraseña" in lt):
+        return True, "Placeholder: abriendo red social"
+
+    # Hora/fecha
+    if "qué hora" in lt or "que hora" in lt:
+        return True, f"La hora local es: {get_system_time()}"
+    if "qué fecha" in lt or "que fecha" in lt:
+        return True, f"La fecha/hora local es: {get_system_time()}"
+
+    # Notepad synonyms
+    synonyms_notepad = ["notepad", "bloc de notas", "block de notas"]
+    if ("abre" in lt and any(syn in lt for syn in synonyms_notepad) and "escribe" in lt):
+        ans = handle_app_llm(user_text, context, messages, strategy, test_time_compute, model, temperature, "notepad")
+        return True, ans
+
+    # Word
+    if "abre" in lt and "word" in lt and "escribe" in lt:
+        ans = handle_app_llm(user_text, context, messages, strategy, test_time_compute, model, temperature, "word")
+        return True, ans
+
+    # Excel
+    if "abre" in lt and "excel" in lt and "escribe" in lt:
+        ans = handle_app_llm(user_text, context, messages, strategy, test_time_compute, model, temperature, "excel")
+        return True, ans
+
+    # busqueda en chrome/firefox
+    if "busca" in lt:
+        browser = None
+        if "chrome" in lt:
+            browser = "chrome"
+        elif "firefox" in lt:
+            browser = "firefox"
+
+        parted = lt.split("busca", maxsplit=1)
+        raw_search = parted[1].strip() if len(parted) > 1 else "búsqueda"
+
+        if browser == "chrome":
+            if not launcher.chrome_driver:
+                launcher.abrir_chrome_fake(raw_search)
+                return True, f"**Abriendo Chrome** y buscando: {raw_search}"
+            else:
+                launcher.update_browsers('chrome', raw_search, "Todo")
+                return True, f"**Usando Chrome abierto** para buscar: {raw_search}"
+        elif browser == "firefox":
+            if not launcher.firefox_driver:
+                launcher.abrir_firefox_fake(raw_search)
+                return True, f"**Abriendo Firefox** y buscando: {raw_search}"
+            else:
+                launcher.update_browsers('firefox', raw_search, "Todo")
+                return True, f"**Usando Firefox abierto** para buscar: {raw_search}"
+
+    return False, ""
+
+def handle_app_llm(user_text, context, messages, strategy, test_time_compute, model, temperature, app):
+    parted = user_text.split("escribe", maxsplit=1)
+    user_msg = parted[1].strip() if len(parted) > 1 else "Texto de ejemplo..."
+
+    conv_hist = build_conversation_history(messages)
+    ext_ctx = f"{context}\n\nHistorial:\n{conv_hist}"
+
+    if strategy == "Simple":
+        raw_resp = strategy_simple(
+            context=ext_ctx,
+            user_message=user_msg,
+            depth=test_time_compute,
+            model=model,
+            temperature=temperature,
+            full_messages=messages
+        )
+    elif strategy == "DVTS":
+        raw_resp = strategy_dvts(
+            context=ext_ctx,
+            user_message=user_msg,
+            total_subtrees=test_time_compute,
+            model=model,
+            temperature=temperature,
+            full_messages=messages
+        )
+    else:
+        raw_resp = "Strategy placeholder..."
+
+    final_resp = raw_resp.replace("Respuesta Final:", "").strip()
+
+    if app == "word":
+        launcher.abrir_word_con_historia(final_resp)
+        return f"**He escrito en Word**:\n{final_resp}"
+    elif app == "excel":
+        launcher.write_in_excel(final_resp)
+        return f"**He escrito en Excel**:\n{final_resp}"
+    elif app == "notepad":
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".txt", mode='w', encoding='utf-8') as tmp:
+            tmp.write(final_resp)
+            path = tmp.name
+        subprocess.Popen(['notepad.exe', path])
+
+        # Autoguardado Notepad
+        ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        default_notepad_path = os.path.join(os.getcwd(), f"auto_saved_notepad_{ts}.txt")
+        try:
+            with open(path, 'r', encoding='utf-8') as src:
+                data = src.read()
+            with open(default_notepad_path, 'w', encoding='utf-8') as dst:
+                dst.write(data)
+            logging.warning(f"[Auto-Saved Notepad] => {default_notepad_path}")
+        except Exception as e:
+            logging.warning(f"Error auto-saving notepad: {e}")
+
+        return f"**He escrito en Notepad**:\n{final_resp}"
+
+    return f"Acción en {app.upper()}: {final_resp}"
+
+
+###############################################################################
+#                          send_message
+###############################################################################
+def send_message(
+    user_message,
+    chat_history,
+    messages,
+    context,
+    user_name,
+    bot_name,
+    temperature,
+    model,
+    use_voice,
+    voice_gender,
+    strategy,
+    test_time_compute
+):
+    if messages is None:
+        return "Primero inicia el chatbot", chat_history, messages
+
+    executed, result = parse_and_execute_command(
+        user_text=user_message,
+        context=context,
+        messages=messages,
+        strategy=strategy,
+        test_time_compute=test_time_compute,
+        model=model,
+        temperature=temperature
+    )
+    if executed:
+        messages.append({"role": "user", "content": f"{user_name}: {user_message}"})
+        messages.append({"role": "assistant", "content": result})
+
+        chat_history.append({"role": "user", "content": f"{user_name}: {user_message}"})
+        chat_history.append({"role": "assistant", "content": f"{bot_name}: {result}"})
+        return "", chat_history, messages
+
+    conversation_str = build_conversation_history(messages)
+    ext_ctx = f"{context}\n\n{conversation_str}"
+
+    if strategy == "Simple":
+        resp = strategy_simple(
+            context=ext_ctx,
+            user_message=user_message,
+            depth=test_time_compute,
+            model=model,
+            temperature=temperature,
+            full_messages=messages
+        )
+    elif strategy == "DVTS":
+        resp = strategy_dvts(
+            context=ext_ctx,
+            user_message=user_message,
+            total_subtrees=test_time_compute,
+            model=model,
+            temperature=temperature,
+            full_messages=messages
+        )
+    else:
+        resp = "Strategy no implementada."
+
+    messages.append({"role": "user", "content": f"{user_name}: {user_message}"})
+    messages.append({"role": "assistant", "content": resp})
+
+    chat_history.append({"role": "user", "content": f"{user_name}: {user_message}"})
+    chat_history.append({"role": "assistant", "content": f"{bot_name}: {resp}"})
+
+    return "", chat_history, messages
+
+def clear_history():
+    return [], [], "", "", "", "", 0.5, "meta-llama-3.1-8b-instruct", False, "Femenina", "Simple", 1
+
+def start_chatbot(context, user, bot, temperature, model, voice_gender, strategy, test_time_compute):
+    msgs = [
+        {"role": "system", "content": context},
+        {"role": "assistant", "content": f"¡Hola {user}! Soy {bot}. ¿En qué puedo ayudarte hoy?"}
+    ]
+    ch = [{"role": "assistant", "content": msgs[-1]['content']}]
+    return (
+        ch, msgs, context, user, bot, temperature, model, voice_gender, strategy, test_time_compute,
+        gr.update(interactive=True)
+    )
+
+###############################################################################
+#                               run_all
+###############################################################################
+def run_all():
+    global launcher
+    root_tk = tk.Tk()
+    launcher = MultiAppLauncher(root_tk)
+
+    with gr.Blocks(title="Super Agente by Viaja Tech") as demo:
+        gr.Markdown("# Super Agente by Viaja Tech")
+
+        with gr.Tab("Configuración"):
+            context_in = gr.Textbox(
+                label="Contexto inicial",
+                lines=3,
+                value="Eres un potente asistente. Razonar antes de responder."
+            )
+            user_in = gr.Textbox(label="Tu nombre", value="Usuario")
+            bot_in = gr.Textbox(label="Nombre del Chatbot", value="SuperBot")
+
+            temperature_in = gr.Slider(
+                label="Temperatura",
+                minimum=0.0,
+                maximum=1.0,
+                value=0.5,
+                step=0.1
+            )
+            model_in = gr.Textbox(
+                label="Modelo (LM Studio)",
+                value="meta-llama-3.1-8b-instruct"
+            )
+
+            use_voice_in = gr.Checkbox(label="Activar salida de voz", value=False)
+            voice_gender_in = gr.Radio(
+                label="Voz del chatbot",
+                choices=["Femenina", "Masculina"],
+                value="Femenina"
+            )
+
+            strategy_in = gr.Radio(
+                label="Estrategia Test-time Compute",
+                choices=["Simple", "Best-of-N", "Weighted Best-of-N", "Beam Search", "DVTS"],
+                value="Simple"
+            )
+            test_time_in = gr.Number(
+                label="Test-time Compute (1..1000)",
+                value=1,
+                precision=0
+            )
+
+            start_button = gr.Button("Iniciar Chatbot")
+
+        with gr.Tab("Chat"):
+            chat_history = gr.Chatbot(type="messages")
+            with gr.Row():
+                message_input = gr.Textbox(label="Escribe tu mensaje...")
+                send_button = gr.Button("Enviar", interactive=False)
+            voice_input_button = gr.Button("Hablar")
+            clear_button = gr.Button("Borrar historial")
+
+        # States
+        st_messages = gr.State()
+        st_context = gr.State()
+        st_user = gr.State()
+        st_bot = gr.State()
+        st_temp = gr.State()
+        st_model = gr.State()
+        st_voice_gender = gr.State()
+        st_strategy = gr.State()
+        st_test_time = gr.State()
+
+        def on_start_btn(cx, us, bo, tmp, mdl, vg, stg, tti):
+            if not isinstance(tti, int):
+                tti = int(tti)
+            if tti < 1:
+                tti = 1
+            if tti > 1000:
+                tti = 1000
+
+            ch, msgs, c, u, b, te, mo, vo, st, tt, upd = start_chatbot(
+                cx, us, bo, tmp, mdl, vg, stg, tti
+            )
+            return ch, msgs, c, u, b, te, mo, vo, st, tt, upd
+
+        start_button.click(
+            on_start_btn,
+            inputs=[
+                context_in,
+                user_in,
+                bot_in,
+                temperature_in,
+                model_in,
+                voice_gender_in,
+                strategy_in,
+                test_time_in
+            ],
+            outputs=[
+                chat_history,
+                st_messages,
+                st_context,
+                st_user,
+                st_bot,
+                st_temp,
+                st_model,
+                st_voice_gender,
+                st_strategy,
+                st_test_time,
+                send_button
+            ]
+        )
+
+        def on_send(u_msg, ch, ms, cx, ur, bo, tmp, md, vo, stg, tti, uv):
+            if not isinstance(tti, int):
+                tti = int(tti)
+            if tti < 1:
+                tti = 1
+            if tti > 1000:
+                tti = 1000
+
+            return send_message(
+                user_message=u_msg,
+                chat_history=ch,
+                messages=ms,
+                context=cx,
+                user_name=ur,
+                bot_name=bo,
+                temperature=tmp,
+                model=md,
+                use_voice=uv,
+                voice_gender=vo,
+                strategy=stg,
+                test_time_compute=tti
+            )
+
+        send_button.click(
+            on_send,
+            inputs=[
+                message_input,
+                chat_history,
+                st_messages,
+                st_context,
+                st_user,
+                st_bot,
+                st_temp,
+                st_model,
+                st_voice_gender,
+                st_strategy,
+                st_test_time,
+                use_voice_in
+            ],
+            outputs=[message_input, chat_history, st_messages]
+        )
+
+        voice_input_button.click(
+            transcribe_audio,
+            inputs=None,
+            outputs=message_input
+        )
+
+        def on_clear():
+            return clear_history()
+
+        clear_button.click(
+            on_clear,
+            outputs=[
+                chat_history,
+                st_messages,
+                st_context,
+                st_user,
+                st_bot,
+                st_temp,
+                st_model,
+                st_voice_gender,
+                st_strategy,
+                st_test_time,
+                send_button
+            ]
+        )
+
+        demo.launch(share=False)
+
+    t = threading.Thread(target=launcher.main, daemon=True)
+    t.start()
+
+
+if __name__ == "__main__":
+    run_all()
