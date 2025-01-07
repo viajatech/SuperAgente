@@ -104,7 +104,7 @@ python -m pywin32_postinstall
 ### 🏁 **Iniciar el Agente Autónomo**
 
 1. **Ejecuta LM STUDIO:**
-   Dirigite a la pestaña/área/sección del desarrollador, selecciona un modelo a.i para cargar, start server/inicia el servidor, asegurate de server port sea 1234 y tener habilitadas las conexiones red,CORS,registro detallado,solicitudes y respuestas,just-in-time.
+   Dirigite a la pestaña/área/sección del desarrollador, selecciona un modelo a.i para cargar, start server/inicia el servidor, asegurate de el puerto del servidor/server port sea; 1234 y tener habilitadas las conexiones red,CORS,registro detallado,solicitudes y respuestas,just-in-time.
    
 2. **Ejecuta el Script Principal:**
    Inicia la interfaz gráfica presionando el boton iniciar chatbot y el agente chatbot ejecutando el script principal en tu entorno Python. click en el link local de gradio para que se abra una ventana/pestaña nueva en tu explorador.
