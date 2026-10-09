@@ -6,7 +6,7 @@ This project is maintained by David Ruiz (GitHub: @viajatech), who is responsibl
 
 ## Scope and intent
 
-This project, like the other repositories under @viajatech, is maintained as part of legitimate defensive security work. As an independent developer I build and protect websites for myself and for my clients, and I use AI-assisted tools — including Claude Code — as part of that defensive workflow: hardening, security review, and incident response on infrastructure I own and operate. Reports and defensive improvements are always welcome.
+This project, like the other repositories under @viajatech, is maintained as part of legitimate defensive security work. As an independent developer I build and protect websites for myself and for my clients — including jettrendy.com and viajatech.xyz, which I own and operate — and I use AI-assisted tools, including Claude Code, as part of that defensive workflow: hardening, security review, and incident response. Reports and defensive improvements are always welcome.
 
 ## Reporting a vulnerability
 
